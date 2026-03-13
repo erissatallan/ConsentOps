@@ -12,6 +12,10 @@ Why this version is good:
 It gives you a real typed endpoint immediately.
 It lets us test planner and policy through one request.
 It creates a timeline we can later move into the audit service with minimal refactoring.
+
+The API should compose services, not simulate their job.
+We now have a real place to add Step Functions later without changing the request contract.
+The response timeline becomes demonstrably honest.
 """
 
 from uuid import uuid4
@@ -26,6 +30,7 @@ from services.api_gateway.schemas import (
 )
 from services.planner.app import plan_actions
 from services.policy.app import evaluate_plan
+from services.orchestrator.app import execute_run
 
 
 app = FastAPI(title="ConsentOps Mesh API")
@@ -64,17 +69,20 @@ def create_run(payload: RunCreateRequest) -> RunCreateResponse:
         )
     )
 
-    final_status = RunStatus.completed
-    if any(decision.decision == "approval_required" for decision in policy_decisions):
-        final_status = RunStatus.awaiting_approval
-    elif any(decision.decision == "deny" for decision in policy_decisions):
-        final_status = RunStatus.failed
+    orchestration_result = execute_run(
+        run_id=run_id,
+        policy_annotated_plan=[decision.model_dump() for decision in policy_decisions],
+        actor_context=payload.actor_context.model_dump(),
+    )
 
-    timeline.append(  # ~finally
+    timeline.extend(orchestration_result["timeline"])
+    final_status = orchestration_result["status"]
+
+    timeline.append(
         RunTimelineEvent(
             event_type="run.status_resolved",
             status=final_status,
-            detail={"run_id": run_id}
+            detail={"run_id": run_id},
         )
     )
 
