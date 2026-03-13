@@ -45,10 +45,10 @@ class ActorContext(BaseModel):
 
     @field_validator("user_id", "tenant_id")
     @classmethod
-    def validate_indentified(cls, value: str) -> str:
+    def validate_identifier(cls, value: str) -> str:
         cleaned = value.strip()
         if not cleaned:
-            raise ValueError("identified must not be empty")
+            raise ValueError("identifier must not be empty")
         return cleaned
 
 class ActionPlanItem(BaseModel):

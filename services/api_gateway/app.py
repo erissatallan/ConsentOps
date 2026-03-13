@@ -1,22 +1,7 @@
-"""ConsentOps Mesh API Gateway (pseudocode scaffold)
+"""ConsentOps Mesh API Gateway"""
 
-PSEUDOCODE:
-1) Validate payload against RunCreateRequest schema.
-2) Build run_id and initial run context.
-3) Call planner service with intent + actor context.
-4) Call policy service to annotate planned actions.
-5) Call orchestrator to start execution.
-6) Return run summary DTO.
-
-Why this version is good:
-It gives you a real typed endpoint immediately.
-It lets us test planner and policy through one request.
-It creates a timeline we can later move into the audit service with minimal refactoring.
-
-The API should compose services, not simulate their job.
-We now have a real place to add Step Functions later without changing the request contract.
-The response timeline becomes demonstrably honest.
-"""
+from fastapi import FastAPI, HTTPException
+from services.auth0_token_vault import TokenVaultExchangeError
 
 from uuid import uuid4
 
@@ -41,7 +26,7 @@ def health() -> dict[str, str]:
 
 @app.post("/v1/runs", response_model=RunCreateResponse)
 def create_run(payload: RunCreateRequest) -> RunCreateResponse:
-    run_id = str(uuid4())  # considering it's asynchronous communication with various clients, can't expect chronological ids
+    run_id = str(uuid4())
 
     timeline = [
         RunTimelineEvent(
@@ -69,11 +54,14 @@ def create_run(payload: RunCreateRequest) -> RunCreateResponse:
         )
     )
 
-    orchestration_result = execute_run(
-        run_id=run_id,
-        policy_annotated_plan=[decision.model_dump() for decision in policy_decisions],
-        actor_context=payload.actor_context.model_dump(),
-    )
+    try:
+        orchestration_result = execute_run(
+            run_id=run_id,
+            policy_annotated_plan=[decision.model_dump() for decision in policy_decisions],
+            actor_context=payload.actor_context.model_dump(),
+        )
+    except TokenVaultExchangeError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
 
     timeline.extend(orchestration_result["timeline"])
     final_status = orchestration_result["status"]

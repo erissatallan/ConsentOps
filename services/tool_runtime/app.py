@@ -53,19 +53,6 @@ from services.adapters_gmail.app import send_reply
 from services.adapters_slack.app import post_message
 from services.auth0_token_vault import exchange_auth0_token_for_provider_token
 
-def get_provider_token_via_token_vault(*, user_id: str, provider: str, scopes: list[str]) -> dict:
-    """
-    Placeholder for Auth0 Token Vault retrieval
-    """
-    return {
-        "token_source": "token_vault",
-        "access_token": "REPLACE_WITH_REAL_TOKEN_AT_RUNTIME",
-        "scopes": scopes,
-        "provider": provider,
-        "user_id": user_id
-    }
-
-
 def dispatch_action(action: dict, actor_context: dict) -> dict:
     provider = action.get("provider", "unknown")
     scopes = action.get("required_scopes", [])
