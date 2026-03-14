@@ -8,6 +8,7 @@ The tool runtime should depend on a Token Vault client, not on Auth0 internals.
 When we wire the real HTTP exchange later, one file changes instead of five.
 """
 
+import requests
 from services.settings import settings
 
 class TokenVaultExchangeError(Exception):
@@ -20,7 +21,7 @@ def get_connection_name_for_provider(provider: str) -> str:
         return settings.auth0_slack_connection
     raise TokenVaultExchangeError(f"Unsupported provider '{provider}'")
 
-def exchange_auth0_token_for_provider_token(
+def _exchange_stub(
     *,
     auth0_subject_token: str,
     provider: str,
@@ -42,9 +43,83 @@ def exchange_auth0_token_for_provider_token(
     connection = get_connection_name_for_provider(provider)
 
     return {
-        "token_source": "token_vault",
+        "token_source": "token_vault_stub",
         "provider": provider,
         "connection": connection,
         "access_token": f"stub-token-for-{provider}",
         "scopes": scopes
     }
+
+def _exchange_live(
+    *,
+    auth0_subject_token: str,
+    provider: str,
+    scopes: list[str]
+) -> dict:
+    if not auth0_subject_token:
+        raise TokenVaultExchangeError("Missing Auth0 subject token for Token Vault exchange.")
+
+    connection = get_connection_name_for_provider(provider)
+    token_url = f"https://{settings.auth0_domain}/oauth/token"
+
+    form_data = {
+            "grant_type": "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token",
+        "client_id": settings.auth0_client_id,
+        "client_secret": settings.auth0_client_secret,
+        "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
+        "subject_token": auth0_subject_token,
+        "requested_token_type": "http://auth0.com/oauth/token-type/federated-connection-access-token",
+        "connection": connection,
+    }
+
+    response = requests.post(
+        token_url,
+        data=form_data,
+        timeout=settings.auth0_token_vault_timeout_seconds
+    )
+
+    if response.status_code != 200:
+        raise TokenVaultExchangeError(
+            f"Auth0 Token Vault exchange failed with status {response.status_code}: {response.text}"
+        )
+
+    body = response.json()
+    access_token = body.get("access_token")
+    if not access_token:
+        raise TokenVaultExchangeError("Auth0 Token Vault exchange succeeded but no access_token was returned.")
+
+    return {
+        "token_source": "token_vault_live",
+        "provider": provider,
+        "connection": connection,
+        "access_token": access_token,
+        "scopes": scopes,
+        "expires_in": body.get("expires_in"),
+        "issued_token_type": body.get("issued_token_type") or body.get("token_type"),
+    }    
+
+def exchange_auth0_token_for_provider_token(
+    *,
+    auth0_subject_token: str,
+    provider: str,
+    scopes: list[str],
+) -> dict:
+    mode = settings.auth0_token_vault_mode.lower().strip()
+
+    if mode == "stub":
+        return _exchange_stub(
+            auth0_subject_token=auth0_subject_token,
+            provider=provider,
+            scopes=scopes            
+        )
+
+    if mode == "live":
+        return _exchange_live(
+            auth0_subject_token=auth0_subject_token,
+            provider=provider,
+            scopes=scopes
+        )
+
+    raise TokenVaultExchangeError(
+        f"Unsupported AUTH0_TOKEN_VAULT_MODE '{settings.auth0_token_vault_mode}'."
+    )

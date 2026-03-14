@@ -58,6 +58,8 @@ def dispatch_action(action: dict, actor_context: dict) -> dict:
     scopes = action.get("required_scopes", [])
     auth0_subject_token = actor_context.get("auth0_subject_token")
     payload = action.get("payload", {})
+    if not isinstance(payload, dict):
+        raise ValueError("Action payload must be a dictionary")
 
     token_bundle = exchange_auth0_token_for_provider_token(
         auth0_subject_token=auth0_subject_token,
