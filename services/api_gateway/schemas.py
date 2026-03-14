@@ -58,6 +58,7 @@ class ActionPlanItem(BaseModel):
     provider: str = Field(min_length=2, max_length=64)
     risk: RiskLevel
     required_scopes: list[str] = Field(default_factory=list)
+    payload: dict[str, Any] = Field(default_factory=dict)
     reason: str = Field(min_length=3, max_length=500)
     confidence: float = Field(ge=0.0, le=1.0)
 
@@ -76,6 +77,7 @@ class PolicyDecision(BaseModel):
     provider: str
     risk: RiskLevel
     required_scopes: list[str]
+    payload: dict[str, Any]
     reason: str
     confidence: float
     decision: PolicyDecisionType

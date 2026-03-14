@@ -57,6 +57,7 @@ def dispatch_action(action: dict, actor_context: dict) -> dict:
     provider = action.get("provider", "unknown")
     scopes = action.get("required_scopes", [])
     auth0_subject_token = actor_context.get("auth0_subject_token")
+    payload = action.get("payload", {})
 
     token_bundle = exchange_auth0_token_for_provider_token(
         auth0_subject_token=auth0_subject_token,
@@ -68,18 +69,12 @@ def dispatch_action(action: dict, actor_context: dict) -> dict:
 
     if action_name == "slack.post_message":
         result = post_message(
-            payload={
-                "text": "ConsentOps Mesh automated notification",
-                "channel": "ops-review",
-            },
+            payload=payload,
             token_bundle=token_bundle,
         )
     elif action_name == "gmail.send_reply":
         result = send_reply(
-            message={
-                "subject": "Re: Automated response from ConsentOps Mesh",
-                "body": "Your request has been received and is being processed.",
-            },
+            message=payload,
             token_bundle=token_bundle,
         )
     else:

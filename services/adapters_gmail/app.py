@@ -20,9 +20,12 @@ def send_reply(message: dict, token_bundle: dict) -> dict:
 """
 
 def send_reply(message: dict, token_bundle: dict) -> dict:
+    to = message.get("to")
     subject = message.get("subject")
     body = message.get("body")
 
+    if not to:
+        raise ValueError("Gmail message must include 'to'.")
     if not subject:
         raise ValueError("Gmail message must include 'subject'.")
     if not body:
@@ -31,6 +34,7 @@ def send_reply(message: dict, token_bundle: dict) -> dict:
     return {
         "status": "stubbed",
         "provider": "gmail",
+        "to": to,
         "subject": subject,
         "body_preview": body[:80],
         "token_source": token_bundle.get("token_source", "unknown"),

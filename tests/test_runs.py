@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
-
 from services.api_gateway.app import app
+from services.adapters_gmail.app import send_reply
 
 client = TestClient(app)
 
@@ -27,6 +27,8 @@ def test_gmail_run_pauses_for_approval_without_requiring_token_exchange():
 
     assert response.status_code == 200
     body = response.json()
+    assert body["plan"][0]["payload"]["to"] == "customer@example.com"
+    assert body["plan"][0]["payload"]["subject"] == "Re: Your request"
     assert body["status"] == "awaiting_approval"
     assert any(event["event_type"] == "run.awaiting_approval" for event in body["timeline"])
 
@@ -65,5 +67,17 @@ def test_slack_run_succeeds_with_auth0_subject_token():
 
     assert response.status_code == 200
     body = response.json()
+    assert body["plan"][0]["payload"]["channel"] == "ops-review"
+    assert body["plan"][0]["payload"]["text"] == "ConsentOps Mesh automated notification"
     assert body["status"] == "completed"
     assert any(event["event_type"] == "run.action_succeeded" for event in body["timeline"])
+
+def test_gmail_adapter_requires_recipient():
+    try:
+        send_reply(
+            message={"subject": "Hello", "body": "World"},
+            token_bundle={"token_source": "token_vault", "connection": "google-oauth2"},
+        )
+        assert False, "Expected ValueError for missing recipient"
+    except ValueError as exc:
+        assert "must include 'to'" in str(exc)
