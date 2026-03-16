@@ -9,6 +9,7 @@ When we wire the real HTTP exchange later, one file changes instead of five.
 """
 
 import requests
+import json
 from services.settings import settings
 
 class TokenVaultExchangeError(Exception):
@@ -72,18 +73,24 @@ def _exchange_live(
         "connection": connection,
     }
 
-    response = requests.post(
-        token_url,
-        data=form_data,
-        timeout=settings.auth0_token_vault_timeout_seconds
-    )
+    try:
+        response = requests.post(
+            token_url,
+            data=form_data,
+            timeout=settings.auth0_token_vault_timeout_seconds,
+        )
+    except requests.RequestException as exc:
+        raise TokenVaultExchangeError(f"Auth0 Token Vault exchange request failed: {exc}") from exc
 
     if response.status_code != 200:
         raise TokenVaultExchangeError(
             f"Auth0 Token Vault exchange failed with status {response.status_code}: {response.text}"
         )
 
-    body = response.json()
+    try:
+        body = response.json()
+    except json.JSONDecodeError as exc:
+        raise TokenVaultExchangeError("Auth0 Token Vault exchange returned non-JSON response.") from exc
     access_token = body.get("access_token")
     if not access_token:
         raise TokenVaultExchangeError("Auth0 Token Vault exchange succeeded but no access_token was returned.")

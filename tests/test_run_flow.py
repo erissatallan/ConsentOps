@@ -20,10 +20,10 @@ def test_slack_run_completes():
                 "user_id": "user_123",
                 "tenant_id": "tenant_demo",
                 "granted_scopes": ["slack:chat:write"],
-                "connected_accounts": ["slack"],
-                "auth0_subject_token": "fake-auth0-token",
+                "connected_accounts": ["slack"]
             },
         },
+        headers={"Authorization": "Bearer fake-auth0-token"}
     )
 
     assert response.status_code == 200
@@ -40,8 +40,7 @@ def test_gmail_run_requires_approval():
                 "user_id": "user_123",
                 "tenant_id": "tenant_demo",
                 "granted_scopes": ["gmail.send"],
-                "connected_accounts": ["google"],
-                "auth0_subject_token": "fake-auth0-token",
+                "connected_accounts": ["google"]
             },
         },
     )
@@ -50,15 +49,3 @@ def test_gmail_run_requires_approval():
     body = response.json()
     assert body["status"] == "awaiting_approval"
     assert any(event["event_type"] == "run.awaiting_approval" for event in body["timeline"])
-
-
-
-
-
-
-
-
-
-
-
-

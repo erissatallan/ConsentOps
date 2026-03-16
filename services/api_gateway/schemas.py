@@ -41,7 +41,6 @@ class ActorContext(BaseModel):
     tenant_id: str = Field(min_length=2, max_length=128)
     granted_scopes: list[str] = Field(default_factory=list)
     connected_accounts: list[str] = Field(default_factory=list)
-    auth0_subject_token: str | None = None
 
     @field_validator("user_id", "tenant_id")
     @classmethod

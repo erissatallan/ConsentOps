@@ -81,3 +81,49 @@ def test_exchange_live_raises_on_auth0_error(monkeypatch):
         assert False, "Expected TokenVaultExchangeError"
     except auth0_token_vault.TokenVaultExchangeError as exc:
         assert "failed with status 401" in str(exc)
+
+
+def test_exchange_live_raises_on_request_exception(monkeypatch):
+    monkeypatch.setattr(auth0_token_vault.settings, "auth0_token_vault_mode", "live")
+
+    def fake_post(url, data, timeout):
+        raise auth0_token_vault.requests.RequestException("network down")
+
+    monkeypatch.setattr(auth0_token_vault.requests, "post", fake_post)
+
+    try:
+        auth0_token_vault.exchange_auth0_token_for_provider_token(
+            auth0_subject_token="auth0-access-token",
+            provider="slack",
+            scopes=["slack:chat:write"],
+        )
+        assert False, "Expected TokenVaultExchangeError"
+    except auth0_token_vault.TokenVaultExchangeError as exc:
+        assert "request failed" in str(exc)
+
+
+def test_exchange_live_raises_on_non_json_response(monkeypatch):
+    monkeypatch.setattr(auth0_token_vault.settings, "auth0_token_vault_mode", "live")
+
+    class NonJsonResponse:
+        status_code = 200
+        text = "ok"
+
+        def json(self):
+            raise auth0_token_vault.json.JSONDecodeError("bad json", "doc", 0)
+
+    def fake_post(url, data, timeout):
+        return NonJsonResponse()
+
+    monkeypatch.setattr(auth0_token_vault.requests, "post", fake_post)
+
+    try:
+        auth0_token_vault.exchange_auth0_token_for_provider_token(
+            auth0_subject_token="auth0-access-token",
+            provider="slack",
+            scopes=["slack:chat:write"],
+        )
+        assert False, "Expected TokenVaultExchangeError"
+    except auth0_token_vault.TokenVaultExchangeError as exc:
+        assert "non-JSON response" in str(exc)
+

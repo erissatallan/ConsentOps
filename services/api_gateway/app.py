@@ -1,21 +1,20 @@
-"""ConsentOps Mesh API Gateway"""
-
-from fastapi import FastAPI, HTTPException
-from services.auth0_token_vault import TokenVaultExchangeError
+"""ConsentOps Mesh API Gateway."""
 
 from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 
+from services.api_gateway.auth import extract_bearer_token
 from services.api_gateway.schemas import (
     RunCreateRequest,
     RunCreateResponse,
     RunStatus,
     RunTimelineEvent,
 )
+from services.auth0_token_vault import TokenVaultExchangeError
+from services.orchestrator.app import execute_run
 from services.planner.app import plan_actions
 from services.policy.app import evaluate_plan
-from services.orchestrator.app import execute_run
 
 
 app = FastAPI(title="ConsentOps Mesh API")
@@ -25,7 +24,10 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 @app.post("/v1/runs", response_model=RunCreateResponse)
-def create_run(payload: RunCreateRequest) -> RunCreateResponse:
+def create_run(
+    payload: RunCreateRequest,
+    auth0_subject_token: str | None = Depends(extract_bearer_token)
+    ) -> RunCreateResponse:
     run_id = str(uuid4())
 
     timeline = [
@@ -36,7 +38,10 @@ def create_run(payload: RunCreateRequest) -> RunCreateResponse:
         )
     ]
 
-    plan = plan_actions(payload.intent, payload.actor_context.model_dump())
+    actor_context = payload.actor_context.model_dump()
+    actor_context["auth0_subject_token"] = auth0_subject_token
+
+    plan = plan_actions(payload.intent, actor_context)
     timeline.append(
         RunTimelineEvent(
             event_type="run.planned",
@@ -45,7 +50,7 @@ def create_run(payload: RunCreateRequest) -> RunCreateResponse:
         )
     )
 
-    policy_decisions = evaluate_plan(plan, payload.actor_context.model_dump())
+    policy_decisions = evaluate_plan(plan, actor_context)
     timeline.append(
         RunTimelineEvent(
             event_type="run.policy_evaluated",
@@ -58,7 +63,7 @@ def create_run(payload: RunCreateRequest) -> RunCreateResponse:
         orchestration_result = execute_run(
             run_id=run_id,
             policy_annotated_plan=[decision.model_dump() for decision in policy_decisions],
-            actor_context=payload.actor_context.model_dump(),
+            actor_context=actor_context,
         )
     except TokenVaultExchangeError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
