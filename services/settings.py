@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     auth0_token_vault_mode: str = Field(default="stub", alias="AUTH0_TOKEN_VAULT_MODE")
     auth0_token_vault_timeout_seconds: float = Field(default=10.0, alias="AUTH0_TOKEN_VAULT_TIMEOUT_SECONDS")
 
+    consentops_base_url: str = Field(default="http://127.0.0.1:8000", alias="CONSENTOPS_BASE_URL")
+    auth0_redirect_uri: str = Field(default="http://127.0.0.1:8000/auth/callback", alias="AUTH0_REDIRECT_URI")
+    auth0_login_scope: str = Field(default="openid profile email offline_access", alias="AUTH0_LOGIN_SCOPE")
+
     # We will likely store connection names explicitly because Auth0 Token Vault
     # uses connections as the provider boundary.
     auth0_google_connection: str = Field(default="google-oauth2", alias="AUTH0_GOOGLE_CONNECTION")

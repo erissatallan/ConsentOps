@@ -27,7 +27,7 @@ def test_exchange_stub_returns_stubbed_provider_token(monkeypatch):
 
 def test_exchange_live_posts_to_auth0(monkeypatch):
     monkeypatch.setattr(auth0_token_vault.settings, "auth0_token_vault_mode", "live")
-    monkeypatch.setattr(auth0_token_vault.settings, "auth0_domain", "example.us.auth0.com")
+    monkeypatch.setattr(auth0_token_vault.settings, "auth0_domain", "dev-h3ju1czcy8nqnfmx.us.auth0.com")
     monkeypatch.setattr(auth0_token_vault.settings, "auth0_client_id", "client-id")
     monkeypatch.setattr(auth0_token_vault.settings, "auth0_client_secret", "client-secret")
     monkeypatch.setattr(auth0_token_vault.settings, "auth0_google_connection", "google-oauth2")
@@ -55,7 +55,7 @@ def test_exchange_live_posts_to_auth0(monkeypatch):
         scopes=["gmail.send"],
     )
 
-    assert captured["url"] == "https://example.us.auth0.com/oauth/token"
+    assert captured["url"] == "https://dev-h3ju1czcy8nqnfmx.us.auth0.com/oauth/token"
     assert captured["data"]["grant_type"] == "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token"
     assert captured["data"]["subject_token_type"] == "urn:ietf:params:oauth:token-type:access_token"
     assert captured["data"]["requested_token_type"] == "http://auth0.com/oauth/token-type/federated-connection-access-token"
@@ -126,4 +126,21 @@ def test_exchange_live_raises_on_non_json_response(monkeypatch):
         assert False, "Expected TokenVaultExchangeError"
     except auth0_token_vault.TokenVaultExchangeError as exc:
         assert "non-JSON response" in str(exc)
+
+
+def test_exchange_live_raises_on_placeholder_config(monkeypatch):
+    monkeypatch.setattr(auth0_token_vault.settings, "auth0_token_vault_mode", "live")
+    monkeypatch.setattr(auth0_token_vault.settings, "auth0_domain", "dev-h3ju1czcy8nqnfmx.us.auth0.com")
+    monkeypatch.setattr(auth0_token_vault.settings, "auth0_client_id", "placeholder-client-id")
+    monkeypatch.setattr(auth0_token_vault.settings, "auth0_client_secret", "placeholder-client-secret")
+
+    try:
+        auth0_token_vault.exchange_auth0_token_for_provider_token(
+            auth0_subject_token="auth0-access-token",
+            provider="slack",
+            scopes=["slack:chat:write"],
+        )
+        assert False, "Expected TokenVaultExchangeError"
+    except auth0_token_vault.TokenVaultExchangeError as exc:
+        assert "Live Token Vault mode requires valid settings" in str(exc)
 

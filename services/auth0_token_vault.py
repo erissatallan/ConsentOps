@@ -22,6 +22,19 @@ def get_connection_name_for_provider(provider: str) -> str:
         return settings.auth0_slack_connection
     raise TokenVaultExchangeError(f"Unsupported provider '{provider}'")
 
+def _validate_live_config() -> None:
+    invalid_values = {
+        "AUTH0_DOMAIN": not settings.auth0_domain.strip() or settings.auth0_domain == "example.us.auth0.com",
+        "AUTH0_CLIENT_ID": settings.auth0_client_id in {"", "placeholder-client-id"},
+        "AUTH0_CLIENT_SECRET": settings.auth0_client_secret in {"", "placeholder-client-secret"},        
+    }
+
+    missing = [key for key, is_invalid in invalid_values.items() if is_invalid]
+    if missing:
+        raise TokenVaultExchangeError(
+            f"Live Token Vault mode requires valid settings for: {', '.join(missing)}."
+        )
+
 def _exchange_stub(
     *,
     auth0_subject_token: str,
@@ -57,6 +70,9 @@ def _exchange_live(
     provider: str,
     scopes: list[str]
 ) -> dict:
+
+    _validate_live_config()
+
     if not auth0_subject_token:
         raise TokenVaultExchangeError("Missing Auth0 subject token for Token Vault exchange.")
 
@@ -95,12 +111,16 @@ def _exchange_live(
     if not access_token:
         raise TokenVaultExchangeError("Auth0 Token Vault exchange succeeded but no access_token was returned.")
 
+    returned_scope = body.get("scope")
+    granted_scopes = returned_scope.split() if isinstance(returned_scope, str) else scopes
+
     return {
         "token_source": "token_vault_live",
         "provider": provider,
         "connection": connection,
         "access_token": access_token,
         "scopes": scopes,
+        "requested_scopes": scopes,
         "expires_in": body.get("expires_in"),
         "issued_token_type": body.get("issued_token_type") or body.get("token_type"),
     }    

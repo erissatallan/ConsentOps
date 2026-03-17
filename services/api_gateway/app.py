@@ -3,6 +3,7 @@
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 
 from services.api_gateway.auth import extract_bearer_token
 from services.api_gateway.schemas import (
@@ -11,10 +12,13 @@ from services.api_gateway.schemas import (
     RunStatus,
     RunTimelineEvent,
 )
+from services.api_gateway.auth0_oauth import Auth0OAuthError, build_authorize_url, exchange_code_for_tokens
+
 from services.auth0_token_vault import TokenVaultExchangeError
 from services.orchestrator.app import execute_run
 from services.planner.app import plan_actions
 from services.policy.app import evaluate_plan
+
 
 
 app = FastAPI(title="ConsentOps Mesh API")
@@ -22,6 +26,43 @@ app = FastAPI(title="ConsentOps Mesh API")
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/auth/login")
+def auth_login() -> RedirectResponse:
+    return RedirectResponse(url=build_authorize_url(), status_code=302)
+
+
+@app.get("/auth/callback")
+def auth_callback(
+    code: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+) -> dict:
+
+    if error:
+        raise HTTPException(
+            status_code=401,
+            detail=f"Auth0 authorization failed: {error}. {error_description or ''}".strip(),
+        )
+
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing authorization code.")        
+
+    try:
+        tokens = exchange_code_for_tokens(code)
+    except Auth0OAuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+    return {
+        "message": "Auth0 login succeeded.",
+        "access_token": tokens.get("access_token"),
+        "refresh_token": tokens.get("refresh_token"),
+        "scope": tokens.get("scope"),
+        "token_type": tokens.get("token_type"),
+        "expires_in": tokens.get("expires_in"),
+    }
+
 
 @app.post("/v1/runs", response_model=RunCreateResponse)
 def create_run(
